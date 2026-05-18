@@ -1,6 +1,6 @@
 use insta::assert_snapshot;
 
-use crate::{boundary_from_content_type, parse};
+use crate::{Error, MultipartParser, boundary_from_content_type, parse};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -104,6 +104,24 @@ fn accepts_epilogue_after_closing_boundary() -> TestResult {
 
   let multipart = parse(body.as_bytes(), boundary.as_bytes())?;
   assert_eq!(multipart.parts().len(), 1);
+  Ok(())
+}
+
+#[test]
+fn multipart_parser_iterator_stops_after_part_error() -> TestResult {
+  let boundary = "abc123";
+  let body = concat!(
+    "--abc123\r\n",
+    "Content-Disposition: form-data; name=\"field\"\n",
+  );
+
+  let mut parser = MultipartParser::new(body.as_bytes(), boundary.as_bytes())?;
+
+  assert!(matches!(
+    parser.next(),
+    Some(Err(Error::InvalidHeaderLineEnding { .. }))
+  ));
+  assert!(parser.next().is_none());
   Ok(())
 }
 

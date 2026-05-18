@@ -168,7 +168,11 @@ impl<'a> Iterator for MultipartParser<'a> {
         if self.done {
             return None;
         }
-        Some(self.parse_next_part())
+        let result = self.parse_next_part();
+        if result.is_err() {
+            self.done = true;
+        }
+        Some(result)
     }
 }
 
