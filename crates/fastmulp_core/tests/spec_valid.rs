@@ -41,6 +41,39 @@ fn accepts_final_boundary_without_terminal_crlf() -> TestResult {
 }
 
 #[test]
+fn try_body_returns_body_for_original_source() -> TestResult {
+  let body = concat!(
+    "--abc123\r\n",
+    "Content-Disposition: form-data; name=\"field\"\r\n",
+    "\r\n",
+    "payload\r\n",
+    "--abc123--\r\n",
+  );
+
+  let multipart = parse(body.as_bytes(), b"abc123")?;
+  assert_eq!(multipart.parts()[0].try_body(multipart.body()), Some(&b"payload"[..]));
+  Ok(())
+}
+
+#[test]
+fn try_body_returns_none_for_too_short_source() -> TestResult {
+  let body = concat!(
+    "--abc123\r\n",
+    "Content-Disposition: form-data; name=\"field\"\r\n",
+    "\r\n",
+    "payload\r\n",
+    "--abc123--\r\n",
+  );
+
+  let multipart = parse(body.as_bytes(), b"abc123")?;
+  let part = &multipart.parts()[0];
+  let body_range = part.body_range();
+  let too_short = &multipart.body()[..body_range.end - 1];
+  assert_eq!(part.try_body(too_short), None);
+  Ok(())
+}
+
+#[test]
 fn accepts_preamble_and_epilogue() -> TestResult {
   let body = concat!(
     "ignored preamble\r\n",
