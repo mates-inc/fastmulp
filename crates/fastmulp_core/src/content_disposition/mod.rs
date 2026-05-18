@@ -126,8 +126,36 @@ fn parse_parameter_value<'a>(
             offset: offset + start,
         });
     }
+    if !token.iter().copied().all(is_tchar) {
+        return Err(Error::InvalidContentDisposition {
+            offset: offset + start,
+        });
+    }
 
     Ok((TextValue::Borrowed(token), cursor))
+}
+
+fn is_tchar(byte: u8) -> bool {
+    matches!(
+        byte,
+        b'!' | b'#'
+            | b'$'
+            | b'%'
+            | b'&'
+            | b'\''
+            | b'*'
+            | b'+'
+            | b'-'
+            | b'.'
+            | b'^'
+            | b'_'
+            | b'`'
+            | b'|'
+            | b'~'
+            | b'0'..=b'9'
+            | b'A'..=b'Z'
+            | b'a'..=b'z'
+    )
 }
 
 fn parse_quoted_value<'a>(

@@ -1,5 +1,16 @@
 use fastmulp_core::{Boundary, Error, parse};
 
+fn assert_invalid_content_disposition(disposition: &str) {
+  let body = format!(
+    "--abc123\r\nContent-Disposition: {disposition}\r\n\r\npayload\r\n--abc123--\r\n"
+  );
+
+  assert!(matches!(
+    parse(body.as_bytes(), b"abc123"),
+    Err(Error::InvalidContentDisposition { .. })
+  ));
+}
+
 #[test]
 fn rejects_missing_content_disposition() {
   let body = concat!(
@@ -30,6 +41,33 @@ fn rejects_missing_name_parameter() {
     parse(body.as_bytes(), b"abc123"),
     Err(Error::MissingPartName { .. })
   ));
+}
+
+#[test]
+fn rejects_unquoted_content_disposition_parameter_values_with_whitespace() {
+  for disposition in [
+    "form-data; name=field value",
+    "form-data; name=field\tvalue",
+    "form-data; name=field value; filename=blob.txt",
+  ] {
+    assert_invalid_content_disposition(disposition);
+  }
+}
+
+#[test]
+fn rejects_unquoted_content_disposition_parameter_values_with_separators() {
+  for disposition in [
+    "form-data; name=field\"value",
+    "form-data; name=field,value",
+    "form-data; name=field:value",
+    "form-data; name=field/value",
+    "form-data; name=field(value)",
+    "form-data; name=field[value]",
+    "form-data; name=field{value}",
+    "form-data; name=field;value",
+  ] {
+    assert_invalid_content_disposition(disposition);
+  }
 }
 
 #[test]
@@ -143,4 +181,3 @@ fn rejects_non_form_data_disposition() {
     Err(Error::InvalidContentDisposition { .. })
   ));
 }
-
