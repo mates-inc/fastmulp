@@ -1,0 +1,28 @@
+{
+  "name": "fastmulp-wasm",
+  "version": "0.0.0",
+  "description": "Browser wasm bindings for fastmulp multipart/form-data parsing.",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "module": "fastmulp_wasm.js",
+  "types": "fastmulp_wasm.d.ts",
+  "exports": {
+    ".": {
+      "types": "./fastmulp_wasm.d.ts",
+      "import": "./fastmulp_wasm.js"
+    },
+    "./fastmulp_wasm_bg.wasm": "./fastmulp_wasm_bg.wasm"
+  },
+  "files": [
+    "fastmulp_wasm.d.ts",
+    "fastmulp_wasm.js",
+    "fastmulp_wasm_bg.js",
+    "fastmulp_wasm_bg.wasm",
+    "fastmulp_wasm_bg.wasm.d.ts",
+    "LICENSE",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

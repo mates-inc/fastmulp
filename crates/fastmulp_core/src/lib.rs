@@ -26,7 +26,7 @@ mod util;
 pub use boundary::{Boundary, boundary_from_content_type};
 pub use error::{Error, Result};
 pub use header::Header;
-pub use parser::{Multipart, MultipartParser, parse};
+pub use parser::{Multipart, MultipartParser, ParseLimits, parse, parse_with_limits};
 pub use part::Part;
 pub use text::TextValue;
 

@@ -24,7 +24,7 @@ pub struct JsPart {
 
 #[napi]
 pub fn boundary_from_content_type(content_type: String) -> Option<String> {
-    parse_boundary(&content_type).map(str::to_owned)
+    parse_boundary(&content_type).map(|boundary| boundary.into_owned())
 }
 
 #[napi]
@@ -55,6 +55,9 @@ fn parse_parts(body: &[u8], boundary: &[u8]) -> Result<Vec<JsPart>> {
 
 fn convert_part(part: &Part<'_>) -> Result<JsPart> {
     let body_range = part.body_range();
+    let name = decode_optional_text(part.name(), "name")?;
+    let file_name = decode_optional_text(part.file_name(), "file_name")?;
+    let content_type = decode_optional_bytes(part.content_type(), "content_type")?;
     let mut headers = Vec::with_capacity(part.headers().len());
     for header in part.headers() {
         headers.push(JsHeader {
@@ -64,9 +67,9 @@ fn convert_part(part: &Part<'_>) -> Result<JsPart> {
     }
 
     Ok(JsPart {
-        name: decode_optional_text(part.name(), "name")?,
-        file_name: decode_optional_text(part.file_name(), "file_name")?,
-        content_type: decode_optional_bytes(part.content_type(), "content_type")?,
+        name,
+        file_name,
+        content_type,
         body_start: to_u32(body_range.start, "body_start")?,
         body_end: to_u32(body_range.end, "body_end")?,
         headers,

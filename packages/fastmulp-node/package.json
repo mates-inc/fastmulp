@@ -1,0 +1,21 @@
+{
+  "name": "fastmulp-node",
+  "version": "0.0.0",
+  "description": "Native Node.js bindings for fastmulp multipart/form-data parsing.",
+  "license": "GPL-3.0-or-later",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "fastmulp.node",
+    "index.d.ts",
+    "index.js",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

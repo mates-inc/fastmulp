@@ -8,7 +8,7 @@ use wasm_bindgen::{JsValue, prelude::wasm_bindgen};
 
 #[wasm_bindgen]
 pub fn boundary_from_content_type(content_type: &str) -> Option<String> {
-    parse_boundary(content_type).map(str::to_owned)
+    parse_boundary(content_type).map(|boundary| boundary.into_owned())
 }
 
 #[wasm_bindgen]

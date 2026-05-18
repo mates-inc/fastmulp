@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use smallvec::SmallVec;
 
 use crate::{
@@ -11,8 +13,12 @@ pub struct Boundary<'a> {
     opening: SmallVec<[u8; 72]>,
 }
 
-pub fn boundary_from_content_type(_content_type: &str) -> Option<&str> {
-    let bytes = _content_type.as_bytes();
+/// Extracts the `boundary` parameter from a multipart `Content-Type` header value.
+///
+/// The returned value is borrowed for ordinary parameters and owned when a
+/// quoted-string contains MIME quoted-pair escapes that need to be decoded.
+pub fn boundary_from_content_type(content_type: &str) -> Option<Cow<'_, str>> {
+    let bytes = content_type.as_bytes();
     let mut cursor = skip_ascii_whitespace(bytes, 0);
     let media_start = cursor;
 
@@ -52,17 +58,13 @@ pub fn boundary_from_content_type(_content_type: &str) -> Option<&str> {
         cursor += 1;
         cursor = skip_ascii_whitespace(bytes, cursor);
 
-        let value = parse_content_type_value(_content_type, cursor)?;
+        let value = parse_content_type_value(content_type, cursor)?;
         cursor = skip_ascii_whitespace(bytes, value.next);
         if cursor < bytes.len() && bytes[cursor] != b';' {
             return None;
         }
 
         if eq_ignore_ascii_case(name, b"boundary") {
-            if value.requires_unescape {
-                return None;
-            }
-
             return Some(value.raw);
         }
     }
@@ -106,9 +108,8 @@ impl<'a> Boundary<'a> {
 }
 
 struct ContentTypeValue<'a> {
-    raw: &'a str,
+    raw: Cow<'a, str>,
     next: usize,
-    requires_unescape: bool,
 }
 
 fn parse_content_type_value(content_type: &str, start: usize) -> Option<ContentTypeValue<'_>> {
@@ -120,26 +121,37 @@ fn parse_content_type_value(content_type: &str, start: usize) -> Option<ContentT
     if bytes[start] == b'"' {
         let inner_start = start + 1;
         let mut cursor = inner_start;
-        let mut requires_unescape = false;
+        let mut decoded = None::<Vec<u8>>;
+        let mut copied_from = inner_start;
         while cursor < bytes.len() {
             match bytes[cursor] {
                 b'"' => {
+                    if let Some(mut decoded) = decoded {
+                        decoded.extend_from_slice(&bytes[copied_from..cursor]);
+                        let raw = String::from_utf8(decoded).ok()?;
+                        return Some(ContentTypeValue {
+                            raw: Cow::Owned(raw),
+                            next: cursor + 1,
+                        });
+                    }
+
                     return content_type
                         .get(inner_start..cursor)
                         .map(|raw| ContentTypeValue {
-                            raw,
+                            raw: Cow::Borrowed(raw),
                             next: cursor + 1,
-                            requires_unescape,
                         });
                 }
                 b'\\' => {
-                    requires_unescape = true;
-                    cursor += 1;
-                    if cursor == bytes.len() {
+                    if cursor + 1 == bytes.len() {
                         return None;
                     }
 
-                    cursor += 1;
+                    let decoded = decoded.get_or_insert_with(|| Vec::with_capacity(bytes.len()));
+                    decoded.extend_from_slice(&bytes[copied_from..cursor]);
+                    decoded.push(bytes[cursor + 1]);
+                    cursor += 2;
+                    copied_from = cursor;
                 }
                 _ => {
                     cursor += 1;
@@ -157,9 +169,8 @@ fn parse_content_type_value(content_type: &str, start: usize) -> Option<ContentT
 
     let end = trim_ascii_end(bytes, cursor);
     content_type.get(start..end).map(|raw| ContentTypeValue {
-        raw,
+        raw: Cow::Borrowed(raw),
         next: cursor,
-        requires_unescape: false,
     })
 }
 

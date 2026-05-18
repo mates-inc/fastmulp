@@ -7,11 +7,12 @@ type TestResult = Result<(), Box<dyn std::error::Error>>;
 #[test]
 fn extracts_boundary_from_content_type() {
     assert_eq!(
-        boundary_from_content_type("multipart/form-data; boundary=----WebKitFormBoundaryabc123"),
+        boundary_from_content_type("multipart/form-data; boundary=----WebKitFormBoundaryabc123")
+            .as_deref(),
         Some("----WebKitFormBoundaryabc123")
     );
     assert_eq!(
-        boundary_from_content_type("multipart/form-data; boundary=\"quoted-boundary\""),
+        boundary_from_content_type("multipart/form-data; boundary=\"quoted-boundary\"").as_deref(),
         Some("quoted-boundary")
     );
     assert_eq!(boundary_from_content_type("text/plain"), None);
