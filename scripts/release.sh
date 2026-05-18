@@ -48,6 +48,14 @@ write_workspace_version() {
   mv Cargo.toml.tmp Cargo.toml
 }
 
+refresh_lockfile() {
+  cargo metadata --format-version 1 >/dev/null
+}
+
+ensure_locked_metadata() {
+  cargo metadata --locked --format-version 1 >/dev/null
+}
+
 bump_patch_base() {
   major="$1"
   minor="$2"
@@ -127,6 +135,7 @@ esac
 
 ensure_git_repo
 ensure_clean_worktree
+ensure_locked_metadata
 
 current_version="$(read_workspace_version)"
 if [ -z "$current_version" ]; then
@@ -141,9 +150,10 @@ if git rev-parse "v${next_version}" >/dev/null 2>&1; then
 fi
 
 write_workspace_version "$next_version"
-git add Cargo.toml
+refresh_lockfile
+ensure_locked_metadata
+git add Cargo.toml Cargo.lock
 git commit -m "release: v${next_version}"
 git tag "v${next_version}"
 
 echo "created release commit and tag for v${next_version}"
-
