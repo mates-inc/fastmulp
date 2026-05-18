@@ -9,7 +9,7 @@ resolver = "2"
 [workspace.package]
 edition = "2024"
 license = "GPL-3.0-or-later"
-repository = "https://github.com/mates-inc/fastmulp"
+repository = "https://github.com/mates-dev/fastmulp"
 rust-version = "1.93"
 version = "0.1.0"
 
