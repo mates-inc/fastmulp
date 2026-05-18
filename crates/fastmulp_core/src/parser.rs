@@ -25,19 +25,57 @@ impl<'a> Multipart<'a> {
     }
 }
 
+/// Optional resource limits for parsing untrusted multipart bodies.
+///
+/// Each `None` value is unlimited. `ParseLimits::default()` preserves the
+/// historical unlimited behavior used by `parse` and `MultipartParser::new`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ParseLimits {
+    /// Maximum number of parts to return before parsing stops with an error.
+    pub max_parts: Option<usize>,
+    /// Maximum number of headers accepted in each part.
+    pub max_headers_per_part: Option<usize>,
+    /// Maximum aggregate header bytes accepted in each part, excluding CRLF.
+    pub max_header_bytes_per_part: Option<usize>,
+}
+
+impl ParseLimits {
+    /// Returns a limit set with every guardrail disabled.
+    pub const fn unlimited() -> Self {
+        Self {
+            max_parts: None,
+            max_headers_per_part: None,
+            max_header_bytes_per_part: None,
+        }
+    }
+}
+
 pub struct MultipartParser<'a> {
     body: &'a [u8],
     boundary: Boundary<'a>,
+    limits: ParseLimits,
+    parts_seen: usize,
     cursor: usize,
     done: bool,
 }
 
 impl<'a> MultipartParser<'a> {
     pub fn new(body: &'a [u8], boundary: &'a [u8]) -> Result<Self> {
+        Self::new_with_limits(body, boundary, ParseLimits::default())
+    }
+
+    /// Creates an iterator parser with explicit resource limits.
+    pub fn new_with_limits(
+        body: &'a [u8],
+        boundary: &'a [u8],
+        limits: ParseLimits,
+    ) -> Result<Self> {
         let boundary = Boundary::new(boundary)?;
         let mut parser = Self {
             body,
             boundary,
+            limits,
+            parts_seen: 0,
             cursor: 0,
             done: false,
         };
@@ -78,8 +116,15 @@ impl<'a> MultipartParser<'a> {
     }
 
     fn parse_next_part(&mut self) -> Result<Part<'a>> {
+        if let Some(limit) = self.limits.max_parts
+            && self.parts_seen >= limit
+        {
+            return Err(Error::PartLimitExceeded { limit });
+        }
+
         let part_offset = self.cursor;
         let mut headers = SmallVec::<[Header<'a>; 4]>::new();
+        let mut header_bytes = 0usize;
         let mut saw_content_disposition = false;
         let mut require_name = false;
         let mut name = None;
@@ -104,6 +149,25 @@ impl<'a> MultipartParser<'a> {
 
             if line.is_empty() {
                 break;
+            }
+
+            header_bytes += line.len();
+            if let Some(limit) = self.limits.max_header_bytes_per_part
+                && header_bytes > limit
+            {
+                return Err(Error::HeaderBytesLimitExceeded {
+                    limit,
+                    offset: line_start,
+                });
+            }
+
+            if let Some(limit) = self.limits.max_headers_per_part
+                && headers.len() >= limit
+            {
+                return Err(Error::HeaderCountLimitExceeded {
+                    limit,
+                    offset: line_start,
+                });
             }
 
             if matches!(line[0], b' ' | b'\t') {
@@ -150,6 +214,8 @@ impl<'a> MultipartParser<'a> {
             self.done = true;
         }
 
+        self.parts_seen += 1;
+
         Ok(Part::new(
             headers,
             body_start,
@@ -177,7 +243,16 @@ impl<'a> Iterator for MultipartParser<'a> {
 }
 
 pub fn parse<'a>(body: &'a [u8], boundary: &'a [u8]) -> Result<Multipart<'a>> {
-    let parser = MultipartParser::new(body, boundary)?;
+    parse_with_limits(body, boundary, ParseLimits::default())
+}
+
+/// Parses a complete multipart body with explicit resource limits.
+pub fn parse_with_limits<'a>(
+    body: &'a [u8],
+    boundary: &'a [u8],
+    limits: ParseLimits,
+) -> Result<Multipart<'a>> {
+    let parser = MultipartParser::new_with_limits(body, boundary, limits)?;
     let mut parts = SmallVec::<[Part<'a>; 4]>::new();
     for part in parser {
         parts.push(part?);

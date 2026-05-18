@@ -3,14 +3,17 @@ use fastmulp_core::{Boundary, Error, boundary_from_content_type};
 #[test]
 fn extracts_boundary_case_insensitively_and_skips_other_params() {
     let content_type = "Multipart/Form-Data; charset=UTF-8; boundary=abc123; foo=bar";
-    assert_eq!(boundary_from_content_type(content_type), Some("abc123"));
+    assert_eq!(
+        boundary_from_content_type(content_type).as_deref(),
+        Some("abc123")
+    );
 }
 
 #[test]
 fn extracts_quoted_boundary_with_optional_spacing() {
     let content_type = "multipart/form-data; foo=bar; boundary = \"quoted-boundary\"";
     assert_eq!(
-        boundary_from_content_type(content_type),
+        boundary_from_content_type(content_type).as_deref(),
         Some("quoted-boundary")
     );
 }
@@ -19,7 +22,7 @@ fn extracts_quoted_boundary_with_optional_spacing() {
 fn extracts_quoted_boundary_with_whitespace_before_next_parameter() {
     let content_type = "multipart/form-data; boundary=\"quoted-boundary\" \t ; charset=UTF-8";
     assert_eq!(
-        boundary_from_content_type(content_type),
+        boundary_from_content_type(content_type).as_deref(),
         Some("quoted-boundary")
     );
 }
@@ -27,13 +30,19 @@ fn extracts_quoted_boundary_with_whitespace_before_next_parameter() {
 #[test]
 fn accepts_quoted_pair_escapes_while_scanning_parameters() {
     let content_type = "multipart/form-data; title=\"needs\\\"escape\"; boundary=abc123";
-    assert_eq!(boundary_from_content_type(content_type), Some("abc123"));
+    assert_eq!(
+        boundary_from_content_type(content_type).as_deref(),
+        Some("abc123")
+    );
 }
 
 #[test]
-fn rejects_escaped_quoted_boundary_values_requiring_unescape() {
+fn extracts_escaped_quoted_boundary_values_requiring_unescape() {
     let content_type = "multipart/form-data; boundary=\"abc\\:123\"";
-    assert_eq!(boundary_from_content_type(content_type), None);
+    assert_eq!(
+        boundary_from_content_type(content_type).as_deref(),
+        Some("abc:123")
+    );
 }
 
 #[test]

@@ -83,6 +83,27 @@ jobs:
           cargo test -p fastmulp-core --doc --locked
           cargo test -p fastmulp-wasm --doc --locked
 
+  bindings:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Enable pnpm
+        run: corepack enable
+      - name: Install wasm-bindgen CLI
+        run: bash scripts/install-wasm-bindgen.sh
+      - name: Node binding smoke test
+        run: pnpm test:node-binding
+      - name: Wasm binding smoke test
+        run: pnpm test:wasm-binding
+
   bench:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest

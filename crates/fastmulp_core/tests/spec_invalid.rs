@@ -1,4 +1,4 @@
-use fastmulp_core::{Boundary, Error, parse};
+use fastmulp_core::{Boundary, Error, ParseLimits, parse, parse_with_limits};
 
 fn assert_invalid_content_disposition(disposition: &str) {
     let body =
@@ -178,5 +178,79 @@ fn rejects_non_form_data_disposition() {
     assert!(matches!(
         parse(body.as_bytes(), b"abc123"),
         Err(Error::InvalidContentDisposition { .. })
+    ));
+}
+
+#[test]
+fn rejects_part_count_over_configured_limit() {
+    let body = concat!(
+        "--abc123\r\n",
+        "Content-Disposition: form-data; name=\"first\"\r\n",
+        "\r\n",
+        "first\r\n",
+        "--abc123\r\n",
+        "Content-Disposition: form-data; name=\"second\"\r\n",
+        "\r\n",
+        "second\r\n",
+        "--abc123--\r\n",
+    );
+
+    assert!(matches!(
+        parse_with_limits(
+            body.as_bytes(),
+            b"abc123",
+            ParseLimits {
+                max_parts: Some(1),
+                ..ParseLimits::default()
+            },
+        ),
+        Err(Error::PartLimitExceeded { limit: 1 })
+    ));
+}
+
+#[test]
+fn rejects_header_count_over_configured_limit() {
+    let body = concat!(
+        "--abc123\r\n",
+        "Content-Disposition: form-data; name=\"file\"\r\n",
+        "Content-Type: text/plain\r\n",
+        "\r\n",
+        "payload\r\n",
+        "--abc123--\r\n",
+    );
+
+    assert!(matches!(
+        parse_with_limits(
+            body.as_bytes(),
+            b"abc123",
+            ParseLimits {
+                max_headers_per_part: Some(1),
+                ..ParseLimits::default()
+            },
+        ),
+        Err(Error::HeaderCountLimitExceeded { limit: 1, .. })
+    ));
+}
+
+#[test]
+fn rejects_header_bytes_over_configured_limit() {
+    let body = concat!(
+        "--abc123\r\n",
+        "Content-Disposition: form-data; name=\"field\"\r\n",
+        "\r\n",
+        "payload\r\n",
+        "--abc123--\r\n",
+    );
+
+    assert!(matches!(
+        parse_with_limits(
+            body.as_bytes(),
+            b"abc123",
+            ParseLimits {
+                max_header_bytes_per_part: Some(8),
+                ..ParseLimits::default()
+            },
+        ),
+        Err(Error::HeaderBytesLimitExceeded { limit: 8, .. })
     ));
 }

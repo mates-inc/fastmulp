@@ -1,0 +1,73 @@
+name: release-bindings
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  publish-binding-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Enable pnpm
+        run: corepack enable
+      - name: Verify tag is on main
+        run: git branch --remote --contains "${GITHUB_SHA}" | grep -qx '  origin/main'
+      - name: Verify tag matches workspace version
+        run: |
+          expected="${GITHUB_REF_NAME#v}"
+          actual="$(awk '
+            /^\[workspace\.package\]/ { in_section=1; next }
+            /^\[/ && in_section { exit }
+            in_section && /^version = "/ {
+              gsub(/^version = "/, "", $0)
+              gsub(/"$/, "", $0)
+              print
+              exit
+            }
+          ' Cargo.toml)"
+          test "${expected}" = "${actual}"
+      - name: Build and test Node binding
+        run: pnpm test:node-binding
+      - name: Install wasm-bindgen CLI
+        run: bash scripts/install-wasm-bindgen.sh
+      - name: Test wasm binding
+        run: pnpm test:wasm-binding
+      - name: Package binding artifacts
+        run: node scripts/package-bindings.mjs --pack
+      - name: Checksum artifacts
+        run: |
+          cd dist/bindings/artifacts
+          sha256sum *.tgz > SHA256SUMS
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 \
+            || gh release create "${GITHUB_REF_NAME}" --verify-tag --title "${GITHUB_REF_NAME}"
+          gh release upload "${GITHUB_REF_NAME}" dist/bindings/artifacts/*.tgz dist/bindings/artifacts/SHA256SUMS --clobber

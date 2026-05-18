@@ -1,5 +1,6 @@
 use core::fmt;
 
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
     EmptyBoundary,
@@ -17,6 +18,9 @@ pub enum Error {
     InvalidContentDisposition { offset: usize },
     MissingClosingBoundary { offset: usize },
     TrailingData { offset: usize },
+    PartLimitExceeded { limit: usize },
+    HeaderCountLimitExceeded { limit: usize, offset: usize },
+    HeaderBytesLimitExceeded { limit: usize, offset: usize },
 }
 
 impl fmt::Display for Error {
@@ -86,6 +90,17 @@ impl fmt::Display for Error {
             Self::TrailingData { offset } => write!(
                 f,
                 "multipart body has trailing data after byte offset {offset}"
+            ),
+            Self::PartLimitExceeded { limit } => {
+                write!(f, "multipart part count exceeded configured limit {limit}")
+            }
+            Self::HeaderCountLimitExceeded { limit, offset } => write!(
+                f,
+                "multipart header count exceeded configured limit {limit} at byte offset {offset}"
+            ),
+            Self::HeaderBytesLimitExceeded { limit, offset } => write!(
+                f,
+                "multipart header bytes exceeded configured limit {limit} at byte offset {offset}"
             ),
         }
     }
